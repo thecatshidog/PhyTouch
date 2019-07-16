@@ -1,10 +1,4 @@
-﻿/* PhyTouch v0.2.6
- * By AlloyTeam http://www.alloyteam.com/
- * Github: https://github.com/AlloyTeam/PhyTouch
- * MIT Licensed.
- */
-
-;(function () {
+﻿;(function () {
     'use strict';
 
     if (!Date.now)
@@ -53,7 +47,7 @@
         return false;
     }
 
-    var PhyTouch = function (option) {
+    var WingTouch = function (option) {
 
         this.reverse = this._getValue(option.reverse, false);
         this.element = typeof option.touch === "string" ? document.querySelector(option.touch) : option.touch;
@@ -68,6 +62,7 @@
         this.vertical = this._getValue(option.vertical, true);
         this.property = option.property;
         this.tickID = 0;
+        this.tickMoveID = 0;
 
         this.value = this._getValue(option.value, this.target[this.property]);
         this.target[this.property] = this.value;
@@ -125,7 +120,7 @@
         this.x1 = this.x2 = this.y1 = this.y2 = null;
     };
 
-    PhyTouch.prototype = {
+    WingTouch.prototype = {
         isAtMax: function () {
             return this.hasMax && this.target[this.property] >= this.max;
         },
@@ -140,8 +135,13 @@
             this._calculateIndex();
         },
         _start: function (evt) {
-            this.isTouchStart = true;
-            this.touchStart.call(this, evt, this.target[this.property]);
+            const isTouchStart = this.touchStart.call(this, evt, this.target[this.property]);
+            if(isTouchStart && isTouchStart === false) {
+                this.isTouchStart = isTouchStart;
+                return isTouchStart;
+            } else {
+                this.isTouchStart = true;
+            }
             cancelAnimationFrame(this.tickID);
             this._calculateIndex();
             this.startTime = new Date().getTime();
@@ -152,6 +152,9 @@
             this._preventMove = false;
         },
         _move: function (evt) {
+            if (this.preventDefault && !preventDefaultTest(evt.target, this.preventDefaultException)) {
+                evt.preventDefault();
+            }
             if (this.isTouchStart) {
                 var len = evt.touches.length,
                     currentX = evt.touches[0].pageX,
@@ -177,9 +180,15 @@
                     d *= f;
                     this.preX = currentX;
                     this.preY = currentY;
+                    var self = this;
+                    cancelAnimationFrame(self.tickMoveID);
                     if (!this.fixed) {
-                        var detalD = this.reverse ? -d : d;
-                        this.target[this.property] += detalD;
+                        var toTick = function () {
+                            var detalD = self.reverse ? -d : d;
+                            self.target[self.property] += detalD;
+                            self.tickMoveID = requestAnimationFrame(toTick);
+                        }
+                        toTick();
                         this.followers.forEach(function(follower){
                             follower.element[this.property] += detalD;
                         }.bind(this))
@@ -191,10 +200,6 @@
                         this.start = this.vertical ? this.preY : this.preX;
                     }
                     this.touchMove.call(this, evt, this.target[this.property]);
-                }
-
-                if (this.preventDefault && !preventDefaultTest(evt.target, this.preventDefaultException)) {
-                    evt.preventDefault();
                 }
 
                 if (len === 1) {
@@ -218,8 +223,9 @@
             this._end(evt);
 
         },
-        to: function (v, time, user_ease, callback) {
+        to: function (v, time, user_ease, callback, immediateFn) {
             this._to(v, this._getValue(time, 600), user_ease || ease, this.change, function (value) {
+                immediateFn && immediateFn.call(this, value);
                 this._calculateIndex();
                 this.reboundEnd.call(this, value);
                 this.animationEnd.call(this, value);
@@ -234,6 +240,7 @@
         },
         _end: function (evt) {
             if (this.isTouchStart) {
+                cancelAnimationFrame(this.tickMoveID);
                 this.isTouchStart = false;
                 var self = this,
                     current = this.target[this.property],
@@ -383,9 +390,9 @@
     };
 
     if (typeof module !== 'undefined' && typeof exports === 'object') {
-        module.exports = PhyTouch;
+        module.exports = WingTouch;
     } else {
-        window.PhyTouch = PhyTouch;
+        window.WingTouch = WingTouch;
     }
 
 })();
