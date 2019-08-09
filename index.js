@@ -105,6 +105,12 @@
         this.step = option.step;
         this.inertia = this._getValue(option.inertia, true);
 
+        // my option
+        // 移动控制器, 判断是否应该移动
+        this.moveControl = this._getValue(option.moveControl, true);
+        // 获取当前所在的页面
+        this.getCurPage = option.getCurPage || noop;
+
         this._calculateIndex();
 
         this.eventTarget = window;
@@ -127,6 +133,9 @@
         isAtMin: function () {
             return this.hasMin && this.target[this.property] <= this.min;
         },
+        setSensitivity: function (sensitivity) {
+            this.sensitivity = sensitivity;
+        },
         _getValue: function (obj, defaultValue) {
             return obj === void 0 ? defaultValue : obj;
         },
@@ -135,8 +144,8 @@
             this._calculateIndex();
         },
         _start: function (evt) {
-            const isTouchStart = this.touchStart.call(this, evt, this.target[this.property]);
-            if(isTouchStart && isTouchStart === false) {
+            var isTouchStart = this.touchStart.call(this, evt, this.target[this.property]);
+            if(isTouchStart === false) {
                 this.isTouchStart = isTouchStart;
                 return isTouchStart;
             } else {
@@ -152,10 +161,17 @@
             this._preventMove = false;
         },
         _move: function (evt) {
+            var curPage = this.getCurPage();
             if (this.preventDefault && !preventDefaultTest(evt.target, this.preventDefaultException)) {
                 evt.preventDefault();
             }
-            if (this.isTouchStart) {
+            const isMove = this.moveControl.call(this, evt, this.target[this.property]);
+            if (!isMove) {
+                cancelAnimationFrame(this.tickMoveID);
+                return false;
+            }
+
+            if (this.isTouchStart && isMove) {
                 var len = evt.touches.length,
                     currentX = evt.touches[0].pageX,
                     currentY = evt.touches[0].pageY;
@@ -170,7 +186,8 @@
                     this._firstTouchMove = false;
                 }
                 if(!this._preventMove) {
-                    var d = (this.vertical ? currentY - this.preY : currentX - this.preX) * this.sensitivity;
+                    var sensitivity = (typeof this.sensitivity === 'number' ? this.sensitivity : this.sensitivity[curPage]) || 1;
+                    var d = (this.vertical ? currentY - this.preY : currentX - this.preX) * sensitivity;
                     var f = this.moveFactor;
                     if (this.isAtMax() && (this.reverse ? -d : d) > 0) {
                         f = this.outFactor;
@@ -221,7 +238,6 @@
             var current = this.target[this.property];
             this.touchCancel.call(this, evt, current);
             this._end(evt);
-
         },
         to: function (v, time, user_ease, callback, immediateFn) {
             this._to(v, this._getValue(time, 600), user_ease || ease, this.change, function (value) {
@@ -240,6 +256,7 @@
         },
         _end: function (evt) {
             if (this.isTouchStart) {
+                var curPage = this.getCurPage();
                 cancelAnimationFrame(this.tickMoveID);
                 this.isTouchStart = false;
                 var self = this,
@@ -268,6 +285,7 @@
                 } else if (this.inertia && !triggerTap && !this._preventMove && !this.fixed) {
                     var dt = new Date().getTime() - this.startTime;
                     if (dt < 300) {
+                        var sensitivity = (typeof this.sensitivity === 'number' ? this.sensitivity : this.sensitivity[curPage]) || 1;
                         var distance = ((this.vertical ? evt.changedTouches[0].pageY : evt.changedTouches[0].pageX) - this.start) * this.sensitivity,
                             speed = Math.abs(distance) / dt,
                             actualSpeed = this.factor * speed;
