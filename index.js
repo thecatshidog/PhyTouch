@@ -110,6 +110,8 @@
         this.moveControl = this._getValue(option.moveControl, true);
         // 获取当前所在的页面
         this.getCurPage = option.getCurPage || noop;
+        this.banTopReBound = option.banTopReBound;
+        this.banBottomReBound = option.banBottomReBound;
 
         this._calculateIndex();
 
@@ -197,12 +199,29 @@
                     d *= f;
                     this.preX = currentX;
                     this.preY = currentY;
+                    var count = 0;
                     var self = this;
                     cancelAnimationFrame(self.tickMoveID);
                     if (!this.fixed) {
                         var toTick = function () {
                             var detalD = self.reverse ? -d : d;
                             self.target[self.property] += detalD;
+                            var curDis = self.target[self.property];
+                            if (self.banTopReBound && curDis >= 0) {
+                                self.target[self.property] = 0;
+                                cancelAnimationFrame(self.tickMoveID);
+                                return;
+                            }
+                            if (self.banBottomReBound && curDis <= self.min) {
+                                self.target[self.property] = self.min;
+                                cancelAnimationFrame(self.tickMoveID);
+                                return;
+                            }
+                            count++;
+                            if(count > 2) {
+                                cancelAnimationFrame(self.tickMoveID);
+                                return;
+                            }
                             self.tickMoveID = requestAnimationFrame(toTick);
                         }
                         toTick();
